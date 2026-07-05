@@ -1,6 +1,6 @@
 {
-  "name": "MyWebSite",
-  "short_name": "MySite",
+  "name": "Productivity Tracker",
+  "short_name": "ProTracker",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
