@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productivity Tracker</title>
+    <!-- Chart.js for graphic generation capability -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase (compat build - works with plain <script> tags, no bundler needed) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <link rel="icon" type="image/png" href="./favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="shortcut icon" href="./favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./site.webmanifest" />
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --card-bg: #161920;
+            --border-color: #242936;
+            --text-main: #e2e8f0;
+            --text-muted: #64748b;
+            --accent-green: #10b981;
+            --accent-green-alpha: rgba(16, 185, 129, 0.15);
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --danger: #ef4444;
+            --scroll-track: #1a1e26;
+            --scroll-thumb: #2e3545;
+            --scroll-thumb-hover: #3d465c;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 12px;
+            line-height: 1.5;
+        }
+
+        @media (min-width: 640px) {
+            body {
+                padding: 24px;
+            }
+        }
+
+        header {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        @media (min-width: 640px) {
+            header {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+        }
+
+        @media (min-width: 640px) {
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        select,
+        button {
+            background-color: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8125rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        @media (min-width: 640px) {
+
+            select,
+            button {
+                padding: 8px 14px;
+                font-size: 0.875rem;
+            }
+        }
+
+        select:focus,
+        button:hover {
+            border-color: var(--text-muted);
+            outline: none;
+        }
+
+        button.btn-primary {
+            background-color: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        button.btn-small {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+        }
+
+        .hidden-input {
+            display: none;
+        }
+
+        .dashboard-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        @media (min-width: 640px) {
+            .dashboard-container {
+                gap: 24px;
+            }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        @media (min-width: 640px) {
+            .card {
+                padding: 20px;
+            }
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .analytics-row {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            align-items: center;
+        }
+
+        @media (min-width: 640px) {
+            .analytics-row {
+                flex-direction: row;
+                align-items: stretch;
+            }
+        }
+
+        .progress-ring-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            width: 100%;
+            height: 200px;
+        }
+
+        @media (min-width: 640px) {
+            .progress-ring-container {
+                max-width: 200px;
+                height: 220px;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .progress-ring-container {
+                max-width: 240px;
+            }
+        }
+
+        .chart-wrapper {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            position: relative;
+            width: 100%;
+            height: 200px;
+        }
+
+        @media (min-width: 640px) {
+            .chart-wrapper {
+                flex: 1;
+                height: 220px;
+            }
+        }
+
+        /* Modern Custom Scrollbar Implementation */
+        .matrix-container {
+            overflow-x: auto;
+            width: 100%;
+            margin-bottom: 4px;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+        }
+
+        .matrix-container::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .matrix-container::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+            border-radius: 10px;
+        }
+
+        .matrix-container::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border-radius: 10px;
+            border: 1px solid var(--scroll-track);
+        }
+
+        .matrix-container::-webkit-scrollbar-thumb:hover {
+            background: var(--scroll-thumb-hover);
+        }
+
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .matrix-table th,
+        .matrix-table td {
+            padding: 6px 8px;
+            border: 1px solid var(--border-color);
+            font-size: 0.75rem;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        @media (min-width: 640px) {
+
+            .matrix-table th,
+            .matrix-table td {
+                padding: 8px 10px;
+                font-size: 0.8125rem;
+            }
+        }
+
+        .matrix-table th:first-child,
+        .matrix-table td:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background-color: var(--card-bg);
+            z-index: 10;
+            min-width: 200px;
+        }
+
+        @media (min-width: 640px) {
+
+            .matrix-table th:first-child,
+            .matrix-table td:first-child {
+                min-width: 240px;
+            }
+        }
+
+        .habit-title-cell {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .day-cell {
+            cursor: pointer;
+            width: 30px;
+            min-width: 30px;
+            height: 30px;
+            transition: all 0.15s;
+            user-select: none;
+        }
+
+        @media (min-width: 640px) {
+            .day-cell {
+                width: 34px;
+                min-width: 34px;
+                height: 34px;
+            }
+        }
+
+        .day-cell.active {
+            background-color: var(--accent-green-alpha);
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+
+        .day-cell:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        @media (min-width: 640px) {
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .summary-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .summary-card-item {
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.875rem;
+        }
+
+        .summary-progress-bar {
+            height: 6px;
+            background-color: var(--border-color);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .summary-progress-fill {
+            height: 100%;
+            background-color: var(--accent-blue);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .habit-actions {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        @media (min-width: 480px) {
+            .habit-actions {
+                flex-direction: row;
+            }
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            width: 100%;
+        }
+
+        @media (min-width: 480px) {
+            input[type="text"] {
+                width: auto;
+                flex: 1;
+            }
+
+            input[type="number"] {
+                width: 90px;
+            }
+        }
+
+        .inline-edit-input {
+            width: 100%;
+            padding: 2px 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <h1>PRODUCTIVITY TRACKER</h1>
+        </div>
+        <div class="controls">
+            <select id="yearSelect"></select>
+            <select id="monthSelect"></select>
+            <button onclick="exportJSON()">Export JSON</button>
+            <button onclick="document.getElementById('importFile').click()">Import JSON</button>
+            <input type="file" id="importFile" class="hidden-input" accept=".json" onchange="importJSON(event)">
+            <span id="syncStatus" style="font-size:0.75rem; color: var(--text-muted);">Connecting…</span>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <!-- Visual Graphic Summary Component Block -->
+        <div class="card">
+            <div class="section-title">Visual Analytics Dashboard</div>
+            <div class="analytics-row">
+                <!-- Circular Progress Ring Chart -->
+                <div class="progress-ring-container">
+                    <svg width="90" height="90" viewBox="0 0 120 120">
+                        <circle cx="60" cy="60" r="50" fill="transparent" stroke="#242936" stroke-width="8" />
+                        <circle id="progressRingCircle" cx="60" cy="60" r="50" fill="transparent" stroke="#10b981"
+                            stroke-width="8" stroke-dasharray="314.16" stroke-dashoffset="314.16" stroke-linecap="round"
+                            transform="rotate(-90 60 60)" />
+                    </svg>
+                    <div id="ringPercentageText" style="font-size: 1.25rem; font-weight: bold; margin-top: 6px;">0%
+                    </div>
+                    <div style="font-size: 0.7125rem; color: var(--text-muted);">Overall Target Met</div>
+                </div>
+
+                <!-- Line Graph Trend Representation -->
+                <div class="chart-wrapper">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid Matrix Framework -->
+        <div class="card">
+            <div class="section-title">Daily Productivity Grid</div>
+            <div class="matrix-container">
+                <table class="matrix-table">
+                    <thead>
+                        <tr id="matrixHeader"></tr>
+                    </thead>
+                    <tbody id="matrixBody"></tbody>
+                </table>
+            </div>
+
+            <div class="habit-actions">
+                <input type="text" id="newHabitName" placeholder="New Habit Title">
+                <input type="number" id="newHabitTarget" placeholder="Target" min="1" max="31" value="26">
+                <button class="btn-primary" onclick="addCustomHabit()">Add Habit</button>
+            </div>
+        </div>
+
+        <!-- Relocated & Multi-Column Expanded Habit Targets Index Section -->
+        <div class="card">
+            <div class="section-title">Productivity Targets Index</div>
+            <div class="summary-grid" id="summaryList"></div>
+        </div>
+    </div>
+
+    <script>
+        const defaultHabits = [
+            { name: "Solved DSA Problem(s) 🧠", target: 26 },
+            { name: "Write/Revise DSA Notes 📝", target: 26 },
+            { name: "Study DBMS 📚", target: 26 },
+            { name: "StudyAI Engineer Core 🤖", target: 26 },
+            { name: "Study SpringBoot📘", target: 26 },
+            { name: "Read >= 2 Articles (Verbal) 📚", target: 30 },
+            { name: "Hit the Gym 🏋️‍♂️", target: 20 },
+            { name: "Play Sports 🏀", target: 5 },
+            { name: "Skincare Routine", target: 30 }
+        ];
+
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        let store = JSON.parse(localStorage.getItem('habit_tracker_state_v4')) || {
+            currentYear: 2026,
+            currentMonth: "July",
+            monthConfigs: {},
+            history: {}
+        };
+
+        let trendChartInstance = null;
+        let editingIndex = null;
+
+        // ---------- Firebase / Firestore cloud sync ----------
+        const firebaseConfig = {
+            apiKey: "AIzaSyBgmVpUwbRZxDfoV8ViscDr5cYQ773lCcQ",
+            authDomain: "habit-tracker-fa16e.firebaseapp.com",
+            projectId: "habit-tracker-fa16e",
+            storageBucket: "habit-tracker-fa16e.firebasestorage.app",
+            messagingSenderId: "204331426976",
+            appId: "1:204331426976:web:173c7295b276b525c995c5"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        // Single shared document that every device reads from / writes to.
+        const docRef = db.collection('habitTracker').doc('sharedData');
+
+        let isApplyingRemoteData = false; // guards against re-uploading data we just received
+        let saveTimer = null;
+        const syncStatusEl = () => document.getElementById('syncStatus');
+
+        function setSyncStatus(text, color) {
+            const el = syncStatusEl();
+            if (el) { el.textContent = text; el.style.color = color || 'var(--text-muted)'; }
+        }
+
+        function saveToCloud() {
+            if (isApplyingRemoteData) return; // don't echo back data that just arrived from the cloud
+            setSyncStatus('Syncing…');
+            clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => {
+                docRef.set({
+                    payload: JSON.stringify(store),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }).then(() => setSyncStatus('Synced ✓', 'var(--accent-green)'))
+                  .catch(err => { console.error('Cloud save failed:', err); setSyncStatus('Sync failed', 'var(--danger)'); });
+            }, 400); // debounce rapid clicks
+        }
+
+        function attachCloudListener() {
+            docRef.onSnapshot(snap => {
+                if (snap.metadata.hasPendingWrites) return; // this is our own optimistic write, ignore it
+                if (snap.exists) {
+                    const data = snap.data();
+                    if (data && data.payload) {
+                        try {
+                            isApplyingRemoteData = true;
+                            store = JSON.parse(data.payload);
+                            yearSelect.value = store.currentYear;
+                            monthSelect.value = store.currentMonth;
+                            render();
+                            setSyncStatus('Synced ✓', 'var(--accent-green)');
+                        } catch (e) {
+                            console.error('Bad cloud payload:', e);
+                        } finally {
+                            isApplyingRemoteData = false;
+                        }
+                    }
+                } else {
+                    // No cloud doc yet on first ever run - seed it with whatever is in localStorage.
+                    saveToCloud();
+                }
+            }, err => {
+                console.error('Cloud listener error:', err);
+                setSyncStatus('Offline (local only)', 'var(--danger)');
+            });
+        }
+
+        attachCloudListener();
+        // ---------- End Firebase section ----------
+
+        // Initialize Form controls
+        const yearSelect = document.getElementById('yearSelect');
+        const monthSelect = document.getElementById('monthSelect');
+        [2025, 2026, 2027].forEach(y => {
+            const o = document.createElement('option'); o.value = y; o.textContent = y;
+            if (y === store.currentYear) o.selected = true;
+            yearSelect.appendChild(o);
+        });
+        months.forEach(m => {
+            const o = document.createElement('option'); o.value = m; o.textContent = m;
+            if (m === store.currentMonth) o.selected = true;
+            monthSelect.appendChild(o);
+        });
+
+        yearSelect.addEventListener('change', (e) => { store.currentYear = parseInt(e.target.value); render(); });
+        monthSelect.addEventListener('change', (e) => { store.currentMonth = e.target.value; render(); });
+
+        function getDaysInMonth(year, monthName) {
+            return new Date(year, months.indexOf(monthName) + 1, 0).getDate();
+        }
+
+        function getMonthKey() {
+            return `${store.currentYear}-${store.currentMonth}`;
+        }
+
+        function getHabitsForMonth(targetYear, targetMonth) {
+            const key = `${targetYear}-${targetMonth}`;
+            if (store.monthConfigs[key]) return store.monthConfigs[key];
+
+            const timeline = [];
+            Object.keys(store.monthConfigs).forEach(k => {
+                const [y, m] = k.split('-');
+                timeline.push({ key: k, year: parseInt(y), monthIdx: months.indexOf(m) });
+            });
+
+            timeline.sort((a, b) => b.year - a.year || b.monthIdx - a.monthIdx);
+            const targetIdx = months.indexOf(targetMonth);
+
+            for (let config of timeline) {
+                if (config.year < targetYear || (config.year === targetYear && config.monthIdx < targetIdx)) {
+                    return JSON.parse(JSON.stringify(store.monthConfigs[config.key]));
+                }
+            }
+
+            return JSON.parse(JSON.stringify(defaultHabits));
+        }
+
+        function toggleDay(name, day) {
+            if (editingIndex !== null) return;
+            const key = getMonthKey();
+            if (!store.history[key]) store.history[key] = {};
+            if (!store.history[key][name]) store.history[key][name] = [];
+
+            const idx = store.history[key][name].indexOf(day);
+            if (idx > -1) store.history[key][name].splice(idx, 1);
+            else store.history[key][name].push(day);
+            render();
+        }
+
+        function addCustomHabit() {
+            const name = document.getElementById('newHabitName');
+            const target = document.getElementById('newHabitTarget');
+            if (!name.value.trim()) return;
+
+            const key = getMonthKey();
+            if (!store.monthConfigs[key]) {
+                store.monthConfigs[key] = getHabitsForMonth(store.currentYear, store.currentMonth);
+            }
+
+            store.monthConfigs[key].push({ name: name.value.trim(), target: parseInt(target.value) || 26 });
+            name.value = '';
+            render();
+        }
+
+        function startEdit(index) {
+            editingIndex = index;
+            render();
+        }
+
+        function cancelEdit() {
+            editingIndex = null;
+            render();
+        }
+
+        function saveEdit(index) {
+            const newName = document.getElementById(`editNameInput_${index}`).value.trim();
+            const newTarget = parseInt(document.getElementById(`editTargetInput_${index}`).value) || 0;
+            if (!newName) return;
+
+            const key = getMonthKey();
+            if (!store.monthConfigs[key]) {
+                store.monthConfigs[key] = getHabitsForMonth(store.currentYear, store.currentMonth);
+            }
+
+            const oldName = store.monthConfigs[key][index].name;
+            store.monthConfigs[key][index].name = newName;
+            store.monthConfigs[key][index].target = newTarget;
+
+            if (oldName !== newName && store.history[key] && store.history[key][oldName]) {
+                store.history[key][newName] = store.history[key][oldName];
+                delete store.history[key][oldName];
+            }
+
+            editingIndex = null;
+            render();
+        }
+
+        function render() {
+            const key = getMonthKey();
+            if (!store.monthConfigs[key]) {
+                store.monthConfigs[key] = getHabitsForMonth(store.currentYear, store.currentMonth);
+            }
+
+            localStorage.setItem('habit_tracker_state_v4', JSON.stringify(store));
+            saveToCloud();
+            const daysCount = getDaysInMonth(store.currentYear, store.currentMonth);
+            const currentHistory = store.history[key] || {};
+            const currentHabits = store.monthConfigs[key];
+
+            // Render Grid Headings
+            const header = document.getElementById('matrixHeader');
+            header.innerHTML = `<th>Habit Metric</th><th>Target</th>`;
+            for (let d = 1; d <= daysCount; d++) header.innerHTML += `<th>${d}</th>`;
+
+            const dayCompletionsCount = Array(daysCount).fill(0);
+            let globalCompleted = 0;
+            let globalTarget = 0;
+
+            const tbody = document.getElementById('matrixBody');
+            tbody.innerHTML = '';
+            const summaryList = document.getElementById('summaryList');
+            summaryList.innerHTML = '';
+
+            currentHabits.forEach((habit, index) => {
+                const completions = currentHistory[habit.name] || [];
+                globalCompleted += completions.length;
+                globalTarget += habit.target;
+
+                completions.forEach(d => { if (d <= daysCount) dayCompletionsCount[d - 1]++; });
+
+                const isEditing = editingIndex === index;
+                let habitCellContent = '';
+                let targetCellContent = '';
+
+                if (isEditing) {
+                    habitCellContent = `
+                        <div class="habit-title-cell">
+                            <input type="text" id="editNameInput_${index}" class="inline-edit-input" value="${habit.name}">
+                            <div class="edit-controls">
+                                <button class="btn-small btn-primary" onclick="saveEdit(${index})">✓</button>
+                                <button class="btn-small" onclick="cancelEdit()">✕</button>
+                            </div>
+                        </div>`;
+                    targetCellContent = `<input type="number" id="editTargetInput_${index}" class="inline-edit-input" style="width:50px" value="${habit.target}">`;
+                } else {
+                    habitCellContent = `
+                        <div class="habit-title-cell">
+                            <span>${habit.name}</span>
+                            <button class="btn-small" style="opacity:0.4;" onclick="startEdit(${index})">✏️</button>
+                        </div>`;
+                    targetCellContent = habit.target;
+                }
+
+                let row = `<tr><td>${habitCellContent}</td><td>${targetCellContent}</td>`;
+                for (let d = 1; d <= daysCount; d++) {
+                    const active = completions.includes(d);
+                    row += `<td class="day-cell ${active ? 'active' : ''}" onclick="toggleDay('${habit.name.replace(/'/g, "\\'")}', ${d})">${active ? '✓' : ''}</td>`;
+                }
+                row += `</tr>`;
+                tbody.innerHTML += row;
+
+                const rate = habit.target > 0 ? Math.min(100, (completions.length / habit.target) * 100) : 0;
+                summaryList.innerHTML += `
+                    <div class="summary-card-item">
+                        <div class="summary-item">
+                            <span>${habit.name}</span>
+                            <span><strong>${completions.length}</strong> / ${habit.target}</span>
+                        </div>
+                        <div class="summary-progress-bar"><div class="summary-progress-fill" style="width: ${rate}%"></div></div>
+                    </div>
+                `;
+            });
+
+            // Update Ring Metrics Calculation Graphs
+            const globalPercent = globalTarget > 0 ? Math.min(100, (globalCompleted / globalTarget) * 100) : 0;
+            document.getElementById('ringPercentageText').textContent = `${globalPercent.toFixed(0)}%`;
+            const circle = document.getElementById('progressRingCircle');
+            const circumference = 2 * Math.PI * 50;
+            circle.style.strokeDashoffset = circumference - (globalPercent / 100) * circumference;
+
+            // Render Line Graph
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            const labels = Array.from({ length: daysCount }, (_, i) => i + 1);
+
+            if (trendChartInstance) trendChartInstance.destroy();
+
+            trendChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Habits Completed Per Day',
+                        data: dayCompletionsCount,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#242936' }, ticks: { color: '#64748b', font: { size: 9 } } },
+                        y: { grid: { color: '#242936' }, ticks: { color: '#64748b', font: { size: 9 }, stepSize: 1 }, min: 0 }
+                    }
+                }
+            });
+        }
+
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(store, null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `habit_tracker_${store.currentYear}_${store.currentMonth}.json`);
+            document.body.appendChild(dl); dl.click(); dl.remove();
+        }
+
+        function importJSON(e) {
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    if (parsed.monthConfigs && parsed.history) {
+                        store = parsed;
+                        yearSelect.value = store.currentYear;
+                        monthSelect.value = store.currentMonth;
+                        render();
+                    }
+                } catch (err) { alert("Parsing error on uploaded JSON data framework."); }
+            };
+            reader.readAsText(e.target.files[0]);
+        }
+
+        render();
+    </script>
+</body>
+
+</html>
