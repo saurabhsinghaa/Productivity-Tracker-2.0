@@ -297,6 +297,172 @@
             gap: 8px;
         }
 
+        .habit-menu-wrap {
+            position: relative;
+            display: inline-block;
+        }
+
+        .habit-menu-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+
+        .habit-menu-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: transparent;
+            color: var(--text-main);
+        }
+
+        .habit-menu-dropdown {
+            display: none;
+            position: fixed;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            min-width: 110px;
+            z-index: 500;
+            overflow: hidden;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+        }
+
+        .habit-menu-dropdown.show {
+            display: block;
+        }
+
+        .habit-menu-dropdown button {
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            cursor: pointer;
+        }
+
+        .habit-menu-dropdown button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: transparent;
+        }
+
+        .habit-menu-dropdown button.danger {
+            color: var(--danger);
+        }
+
+        /* Password gate overlay */
+        #authOverlay {
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 0%, rgba(59, 130, 246, 0.08), transparent 55%),
+                var(--bg-color);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        #authOverlay.hidden {
+            display: none;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 340px;
+            text-align: left;
+        }
+
+        .auth-eyebrow {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .auth-eyebrow::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent-blue);
+            display: inline-block;
+            flex-shrink: 0;
+        }
+
+        .auth-card h2 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+
+        .auth-card p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .auth-field {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            transition: border-color 0.15s;
+        }
+
+        .auth-field:focus-within {
+            border-color: var(--accent-blue);
+        }
+
+        .auth-card input {
+            width: 100%;
+            box-sizing: border-box;
+            background: transparent;
+            border: none;
+            padding: 4px 2px;
+            font-size: 0.95rem;
+            color: var(--text-main);
+            letter-spacing: 0.05em;
+        }
+
+        .auth-card input:focus {
+            outline: none;
+            border-color: transparent;
+        }
+
+        .auth-card button {
+            width: 100%;
+            padding: 11px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+        }
+
+        .auth-error {
+            color: var(--danger);
+            font-size: 0.78rem;
+            min-height: 18px;
+            margin: -12px 0 12px;
+        }
+
+        body.auth-locked > *:not(#authOverlay) {
+            display: none;
+        }
+
         .day-cell {
             cursor: pointer;
             width: 30px;
@@ -413,7 +579,27 @@
     </style>
 </head>
 
-<body>
+<body class="auth-locked">
+
+    <div id="authOverlay">
+        <div class="auth-card">
+            <div class="auth-eyebrow">Private tracker</div>
+            <h2>Enter password</h2>
+            <p>This grid is locked to keep it from being casually opened by anyone with the link.</p>
+            <div class="auth-field">
+                <input type="password" id="authPasswordInput" placeholder="Password" autocomplete="off">
+            </div>
+            <div class="auth-error" id="authError"></div>
+            <button class="btn-primary" onclick="checkAuthPassword()">Unlock</button>
+        </div>
+    </div>
+
+    <!-- Single shared dropdown menu for habit rows, positioned via JS so it escapes the
+         scrollable table container's clipping. -->
+    <div class="habit-menu-dropdown" id="habitMenuPopup">
+        <button id="habitMenuEditBtn">✏️ Edit</button>
+        <button class="danger" id="habitMenuDeleteBtn">🗑️ Delete</button>
+    </div>
 
     <header>
         <div>
@@ -495,6 +681,44 @@
 
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+        // ---------- Simple password gate ----------
+        // NOTE: This is a client-side-only lock for casual privacy (keeping the page from
+        // being idly browsed by someone with the link). It is NOT real security - the
+        // password lives in this page's source code and anyone who views source or opens
+        // dev tools can read it or bypass this screen entirely. Do not rely on this to
+        // protect sensitive data.
+        const SITE_PASSWORD = "ucer";
+
+        function unlockSite() {
+            document.body.classList.remove('auth-locked');
+            document.getElementById('authOverlay').classList.add('hidden');
+        }
+
+        function checkAuthPassword() {
+            const input = document.getElementById('authPasswordInput');
+            const errorEl = document.getElementById('authError');
+            if (input.value === SITE_PASSWORD) {
+                sessionStorage.setItem('habit_tracker_authed', 'true');
+                errorEl.textContent = '';
+                unlockSite();
+            } else {
+                errorEl.textContent = 'Incorrect password. Try again.';
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        document.getElementById('authPasswordInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') checkAuthPassword();
+        });
+
+        if (sessionStorage.getItem('habit_tracker_authed') === 'true') {
+            unlockSite();
+        } else {
+            document.getElementById('authPasswordInput').focus();
+        }
+        // ---------- End password gate ----------
+
         let store = JSON.parse(localStorage.getItem('habit_tracker_state_v4')) || {
             currentYear: 2026,
             currentMonth: "July",
@@ -521,6 +745,7 @@
         const docRef = db.collection('habitTracker').doc('sharedData');
 
         let isApplyingRemoteData = false; // guards against re-uploading data we just received
+        let initialSyncDone = false;      // guards against pushing stale local data before we've heard from the cloud
         let saveTimer = null;
         const syncStatusEl = () => document.getElementById('syncStatus');
 
@@ -531,6 +756,7 @@
 
         function saveToCloud() {
             if (isApplyingRemoteData) return; // don't echo back data that just arrived from the cloud
+            if (!initialSyncDone) return; // don't push stale local data before we've heard the real cloud state
             setSyncStatus('Syncing…');
             clearTimeout(saveTimer);
             saveTimer = setTimeout(() => {
@@ -561,8 +787,11 @@
                             isApplyingRemoteData = false;
                         }
                     }
+                    initialSyncDone = true; // safe to push our own edits from now on
                 } else {
-                    // No cloud doc yet on first ever run - seed it with whatever is in localStorage.
+                    // No cloud doc yet on first ever run - seed it directly (bypassing the gate,
+                    // since this is the one legitimate case where local data should go up first).
+                    initialSyncDone = true;
                     saveToCloud();
                 }
             }, err => {
@@ -648,6 +877,38 @@
             render();
         }
 
+        function closeAllHabitMenus() {
+            const popup = document.getElementById('habitMenuPopup');
+            popup.classList.remove('show');
+        }
+
+        function toggleHabitMenu(event, index) {
+            event.stopPropagation();
+            const popup = document.getElementById('habitMenuPopup');
+            const alreadyOpenForThisRow = popup.classList.contains('show') && popup.dataset.index === String(index);
+
+            if (alreadyOpenForThisRow) {
+                closeAllHabitMenus();
+                return;
+            }
+
+            // Position the shared popup just under/right-aligned to the clicked button,
+            // using fixed coordinates so it renders above the scrollable table (no clipping).
+            const btnRect = event.currentTarget.getBoundingClientRect();
+            popup.style.top = `${btnRect.bottom + 4}px`;
+            popup.style.left = `${Math.max(8, btnRect.right - 110)}px`;
+            popup.dataset.index = String(index);
+            popup.classList.add('show');
+
+            document.getElementById('habitMenuEditBtn').onclick = () => { closeAllHabitMenus(); startEdit(index); };
+            document.getElementById('habitMenuDeleteBtn').onclick = () => { closeAllHabitMenus(); deleteHabit(index); };
+        }
+
+        // Close the popup when clicking anywhere else, scrolling the table, or resizing.
+        document.addEventListener('click', closeAllHabitMenus);
+        document.addEventListener('scroll', closeAllHabitMenus, true);
+        window.addEventListener('resize', closeAllHabitMenus);
+
         function startEdit(index) {
             editingIndex = index;
             render();
@@ -681,17 +942,41 @@
             render();
         }
 
-        function render() {
+        function deleteHabit(index) {
+            if (editingIndex !== null) return; // avoid conflicting with an in-progress edit elsewhere
+
             const key = getMonthKey();
+            // Same fork-on-customize pattern as add/edit: this only ever mutates
+            // *this* month's config, leaving earlier months' snapshots untouched.
             if (!store.monthConfigs[key]) {
                 store.monthConfigs[key] = getHabitsForMonth(store.currentYear, store.currentMonth);
             }
+
+            const habitName = store.monthConfigs[key][index].name;
+            const ok = confirm(
+                `Remove "${habitName}" starting from ${store.currentMonth} ${store.currentYear}?\n\n` +
+                `Earlier months won't be affected, and any past check-ins for this habit are kept ` +
+                `(just hidden from view since the habit no longer appears in this or future months).`
+            );
+            if (!ok) return;
+
+            store.monthConfigs[key].splice(index, 1);
+            render();
+        }
+
+        function render() {
+            const key = getMonthKey();
+            // NOTE: we deliberately do NOT write store.monthConfigs[key] here.
+            // Just viewing a month should compute its habits live (inheriting from the
+            // most recent month that was actually edited) rather than permanently locking
+            // in a snapshot. Snapshots are only created in addCustomHabit()/saveEdit(),
+            // i.e. when the user actually customizes that month.
+            const currentHabits = getHabitsForMonth(store.currentYear, store.currentMonth);
 
             localStorage.setItem('habit_tracker_state_v4', JSON.stringify(store));
             saveToCloud();
             const daysCount = getDaysInMonth(store.currentYear, store.currentMonth);
             const currentHistory = store.history[key] || {};
-            const currentHabits = store.monthConfigs[key];
 
             // Render Grid Headings
             const header = document.getElementById('matrixHeader');
@@ -732,7 +1017,9 @@
                     habitCellContent = `
                         <div class="habit-title-cell">
                             <span>${habit.name}</span>
-                            <button class="btn-small" style="opacity:0.4;" onclick="startEdit(${index})">✏️</button>
+                            <div class="habit-menu-wrap">
+                                <button class="habit-menu-btn" onclick="toggleHabitMenu(event, ${index})">⋮</button>
+                            </div>
                         </div>`;
                     targetCellContent = habit.target;
                 }
