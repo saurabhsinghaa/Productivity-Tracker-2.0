@@ -182,10 +182,11 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: rgba(255, 255, 255, 0.01);
+            gap: 18px;
+            background: rgba(255, 255, 255, 0.015);
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 16px;
+            border-radius: 10px;
+            padding: 24px 16px;
             width: 100%;
             height: 200px;
         }
@@ -201,6 +202,52 @@
             .progress-ring-container {
                 max-width: 240px;
             }
+        }
+
+        .ring-visual {
+            position: relative;
+            width: 116px;
+            height: 116px;
+        }
+
+        .ring-visual svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .ring-center-text {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ring-percent {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+        }
+
+        .ring-caption {
+            text-align: center;
+        }
+
+        .ring-caption-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .ring-caption-date {
+            font-size: 0.78rem;
+            color: var(--text-main);
+            opacity: 0.75;
+            margin-top: 5px;
         }
 
         .chart-wrapper {
@@ -611,6 +658,7 @@
             <button onclick="exportJSON()">Export JSON</button>
             <button onclick="document.getElementById('importFile').click()">Import JSON</button>
             <input type="file" id="importFile" class="hidden-input" accept=".json" onchange="importJSON(event)">
+            <button onclick="resetMonthToInherited()" title="Un-freeze this month so it goes back to inheriting name/goal changes from the most recently edited earlier month">Reset Month</button>
             <span id="syncStatus" style="font-size:0.75rem; color: var(--text-muted);">Connecting…</span>
         </div>
     </header>
@@ -622,15 +670,21 @@
             <div class="analytics-row">
                 <!-- Circular Progress Ring Chart -->
                 <div class="progress-ring-container">
-                    <svg width="90" height="90" viewBox="0 0 120 120">
-                        <circle cx="60" cy="60" r="50" fill="transparent" stroke="#242936" stroke-width="8" />
-                        <circle id="progressRingCircle" cx="60" cy="60" r="50" fill="transparent" stroke="#10b981"
-                            stroke-width="8" stroke-dasharray="314.16" stroke-dashoffset="314.16" stroke-linecap="round"
-                            transform="rotate(-90 60 60)" />
-                    </svg>
-                    <div id="ringPercentageText" style="font-size: 1.25rem; font-weight: bold; margin-top: 6px;">0%
+                    <div class="ring-visual">
+                        <svg width="116" height="116" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="50" fill="transparent" stroke="#242936" stroke-width="8" />
+                            <circle id="dailyProgressRingCircle" cx="60" cy="60" r="50" fill="transparent" stroke="#10b981"
+                                stroke-width="8" stroke-dasharray="314.16" stroke-dashoffset="314.16" stroke-linecap="round"
+                                transform="rotate(-90 60 60)" />
+                        </svg>
+                        <div class="ring-center-text">
+                            <div id="dailyRingPercentageText" class="ring-percent">0%</div>
+                        </div>
                     </div>
-                    <div style="font-size: 0.7125rem; color: var(--text-muted);">Overall Target Met</div>
+                    <div class="ring-caption">
+                        <div class="ring-caption-label">Daily Target Met</div>
+                        <div id="dailyRingDateText" class="ring-caption-date"></div>
+                    </div>
                 </div>
 
                 <!-- Line Graph Trend Representation -->
@@ -663,6 +717,29 @@
         <div class="card">
             <div class="section-title">Productivity Targets Index</div>
             <div class="summary-grid" id="summaryList"></div>
+        </div>
+
+        <!-- Overall (whole-month, cumulative) progress, moved below the targets index -->
+        <div class="card">
+            <div class="section-title">Overall Progress</div>
+            <div class="analytics-row">
+                <div class="progress-ring-container">
+                    <div class="ring-visual">
+                        <svg width="116" height="116" viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="50" fill="transparent" stroke="#242936" stroke-width="8" />
+                            <circle id="progressRingCircle" cx="60" cy="60" r="50" fill="transparent" stroke="#10b981"
+                                stroke-width="8" stroke-dasharray="314.16" stroke-dashoffset="314.16" stroke-linecap="round"
+                                transform="rotate(-90 60 60)" />
+                        </svg>
+                        <div class="ring-center-text">
+                            <div id="ringPercentageText" class="ring-percent">0%</div>
+                        </div>
+                    </div>
+                    <div class="ring-caption">
+                        <div class="ring-caption-label">Overall Target Met</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -942,6 +1019,23 @@
             render();
         }
 
+        function resetMonthToInherited() {
+            const key = getMonthKey();
+            if (!store.monthConfigs[key]) {
+                alert(`${store.currentMonth} ${store.currentYear} is already inheriting live from the nearest earlier edited month - nothing to reset.`);
+                return;
+            }
+            const ok = confirm(
+                `Reset ${store.currentMonth} ${store.currentYear} to inherit habit names/goals from the most ` +
+                `recently edited earlier month?\n\nUse this if this month got "stuck" with old data from before ` +
+                `a fix was applied. Any name/goal customization made specifically in this month will be lost ` +
+                `(check-in history stays intact). This does NOT affect any other month.`
+            );
+            if (!ok) return;
+            delete store.monthConfigs[key];
+            render();
+        }
+
         function deleteHabit(index) {
             if (editingIndex !== null) return; // avoid conflicting with an in-progress edit elsewhere
 
@@ -1050,6 +1144,26 @@
             const circle = document.getElementById('progressRingCircle');
             const circumference = 2 * Math.PI * 50;
             circle.style.strokeDashoffset = circumference - (globalPercent / 100) * circumference;
+
+            // Daily Target Met: for "today's" day-of-month, how many habits were checked off
+            // out of the total habit count for the month currently being viewed.
+            const todayDayNum = Math.min(new Date().getDate(), daysCount);
+            let dailyCompleted = 0;
+            currentHabits.forEach(habit => {
+                const completions = currentHistory[habit.name] || [];
+                if (completions.includes(todayDayNum)) dailyCompleted++;
+            });
+            const dailyTarget = currentHabits.length;
+            const dailyPercent = dailyTarget > 0 ? Math.min(100, (dailyCompleted / dailyTarget) * 100) : 0;
+            document.getElementById('dailyRingPercentageText').textContent = `${dailyPercent.toFixed(0)}%`;
+            const dailyCircle = document.getElementById('dailyProgressRingCircle');
+            dailyCircle.style.strokeDashoffset = circumference - (dailyPercent / 100) * circumference;
+
+            const dailyDateObj = new Date(store.currentYear, months.indexOf(store.currentMonth), todayDayNum);
+            const weekdayLabel = dailyDateObj.toLocaleDateString('en-US', { weekday: 'short' });
+            const monthLabel = dailyDateObj.toLocaleDateString('en-US', { month: 'short' });
+            document.getElementById('dailyRingDateText').textContent =
+                `${weekdayLabel}, ${monthLabel} ${todayDayNum}, ${store.currentYear}`;
 
             // Render Line Graph
             const ctx = document.getElementById('trendChart').getContext('2d');
