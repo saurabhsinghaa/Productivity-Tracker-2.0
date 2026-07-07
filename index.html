@@ -537,6 +537,19 @@
             background-color: rgba(255, 255, 255, 0.05);
         }
 
+        .day-cell.locked {
+            cursor: not-allowed;
+            opacity: 0.4;
+        }
+
+        .day-cell.locked:hover {
+            background-color: transparent;
+        }
+
+        .day-cell.locked.active {
+            opacity: 0.65;
+        }
+
         .summary-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -595,6 +608,46 @@
             .habit-actions {
                 flex-direction: row;
             }
+        }
+
+        .grid-mode-toggle {
+            display: inline-flex;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            padding: 3px;
+            gap: 2px;
+        }
+
+        .grid-mode-toggle button {
+            border: none;
+            background: transparent;
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 999px;
+            color: var(--text-muted);
+            cursor: pointer;
+            line-height: 1.2;
+        }
+
+        .grid-mode-toggle button.active {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        .grid-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .habit-actions.disabled {
+            opacity: 0.4;
+            pointer-events: none;
         }
 
         input[type="text"],
@@ -696,7 +749,13 @@
 
         <!-- Grid Matrix Framework -->
         <div class="card">
-            <div class="section-title">Daily Productivity Grid</div>
+            <div class="grid-header">
+                <div class="section-title" style="margin-bottom:0;">Daily Productivity Grid</div>
+                <div class="grid-mode-toggle">
+                    <button id="viewModeBtn" onclick="setGridMode('view')">View</button>
+                    <button id="editModeBtn" onclick="setGridMode('edit')">Edit</button>
+                </div>
+            </div>
             <div class="matrix-container">
                 <table class="matrix-table">
                     <thead>
@@ -706,7 +765,7 @@
                 </table>
             </div>
 
-            <div class="habit-actions">
+            <div class="habit-actions" id="habitActions">
                 <input type="text" id="newHabitName" placeholder="New Habit Title">
                 <input type="number" id="newHabitTarget" placeholder="Target" min="1" max="31" value="26">
                 <button class="btn-primary" onclick="addCustomHabit()">Add Habit</button>
@@ -805,6 +864,16 @@
 
         let trendChartInstance = null;
         let editingIndex = null;
+        let gridMode = 'view'; // 'view' = read only, 'edit' = can edit/add/delete habits
+
+        function setGridMode(mode) {
+            gridMode = mode;
+            if (mode === 'view') {
+                closeAllHabitMenus();
+                editingIndex = null;
+            }
+            render();
+        }
 
         // ---------- Firebase / Firestore cloud sync ----------
         const firebaseConfig = {
@@ -905,6 +974,22 @@
             return `${store.currentYear}-${store.currentMonth}`;
         }
 
+        // Tick-lock: only today and yesterday (real calendar dates) can be ticked/unticked.
+        // Everything else - future days and anything older - is read-only, regardless of
+        // which month/year is currently being viewed.
+        const EDITABLE_WINDOW_DAYS = 2; // today + 1 day back
+
+        function isDayEditable(year, monthName, day) {
+            const cellDate = new Date(year, months.indexOf(monthName), day);
+            cellDate.setHours(0, 0, 0, 0);
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const diffDays = Math.round((today - cellDate) / (1000 * 60 * 60 * 24));
+            return diffDays >= 0 && diffDays < EDITABLE_WINDOW_DAYS;
+        }
+
         function getHabitsForMonth(targetYear, targetMonth) {
             const key = `${targetYear}-${targetMonth}`;
             if (store.monthConfigs[key]) return store.monthConfigs[key];
@@ -928,7 +1013,10 @@
         }
 
         function toggleDay(name, day) {
+            if (gridMode !== 'edit') return; // view mode - fully read only
             if (editingIndex !== null) return;
+            if (!isDayEditable(store.currentYear, store.currentMonth, day)) return; // locked - read only
+
             const key = getMonthKey();
             if (!store.history[key]) store.history[key] = {};
             if (!store.history[key][name]) store.history[key][name] = [];
@@ -940,6 +1028,7 @@
         }
 
         function addCustomHabit() {
+            if (gridMode !== 'edit') return;
             const name = document.getElementById('newHabitName');
             const target = document.getElementById('newHabitTarget');
             if (!name.value.trim()) return;
@@ -987,6 +1076,7 @@
         window.addEventListener('resize', closeAllHabitMenus);
 
         function startEdit(index) {
+            if (gridMode !== 'edit') return;
             editingIndex = index;
             render();
         }
@@ -997,6 +1087,7 @@
         }
 
         function saveEdit(index) {
+            if (gridMode !== 'edit') return;
             const newName = document.getElementById(`editNameInput_${index}`).value.trim();
             const newTarget = parseInt(document.getElementById(`editTargetInput_${index}`).value) || 0;
             if (!newName) return;
@@ -1037,6 +1128,7 @@
         }
 
         function deleteHabit(index) {
+            if (gridMode !== 'edit') return;
             if (editingIndex !== null) return; // avoid conflicting with an in-progress edit elsewhere
 
             const key = getMonthKey();
@@ -1072,6 +1164,11 @@
             const daysCount = getDaysInMonth(store.currentYear, store.currentMonth);
             const currentHistory = store.history[key] || {};
 
+            // Reflect the current View/Edit mode in the toggle and the Add Habit controls.
+            document.getElementById('viewModeBtn').classList.toggle('active', gridMode === 'view');
+            document.getElementById('editModeBtn').classList.toggle('active', gridMode === 'edit');
+            document.getElementById('habitActions').classList.toggle('disabled', gridMode !== 'edit');
+
             // Render Grid Headings
             const header = document.getElementById('matrixHeader');
             header.innerHTML = `<th>Habit Metric</th><th>Target</th>`;
@@ -1093,7 +1190,7 @@
 
                 completions.forEach(d => { if (d <= daysCount) dayCompletionsCount[d - 1]++; });
 
-                const isEditing = editingIndex === index;
+                const isEditing = gridMode === 'edit' && editingIndex === index;
                 let habitCellContent = '';
                 let targetCellContent = '';
 
@@ -1111,9 +1208,10 @@
                     habitCellContent = `
                         <div class="habit-title-cell">
                             <span>${habit.name}</span>
+                            ${gridMode === 'edit' ? `
                             <div class="habit-menu-wrap">
                                 <button class="habit-menu-btn" onclick="toggleHabitMenu(event, ${index})">⋮</button>
-                            </div>
+                            </div>` : ''}
                         </div>`;
                     targetCellContent = habit.target;
                 }
@@ -1121,7 +1219,15 @@
                 let row = `<tr><td>${habitCellContent}</td><td>${targetCellContent}</td>`;
                 for (let d = 1; d <= daysCount; d++) {
                     const active = completions.includes(d);
-                    row += `<td class="day-cell ${active ? 'active' : ''}" onclick="toggleDay('${habit.name.replace(/'/g, "\\'")}', ${d})">${active ? '✓' : ''}</td>`;
+                    const withinDateWindow = isDayEditable(store.currentYear, store.currentMonth, d);
+                    const editable = gridMode === 'edit' && withinDateWindow;
+                    const classes = `day-cell ${active ? 'active' : ''} ${editable ? '' : 'locked'}`;
+                    const clickHandler = editable ? `onclick="toggleDay('${habit.name.replace(/'/g, "\\'")}', ${d})"` : '';
+                    const lockReason = gridMode !== 'edit'
+                        ? 'Switch to Edit mode to tick boxes'
+                        : `Locked - only the last ${EDITABLE_WINDOW_DAYS} days can be edited`;
+                    const title = editable ? '' : `title="${lockReason}"`;
+                    row += `<td class="${classes}" ${clickHandler} ${title}>${active ? '✓' : ''}</td>`;
                 }
                 row += `</tr>`;
                 tbody.innerHTML += row;
