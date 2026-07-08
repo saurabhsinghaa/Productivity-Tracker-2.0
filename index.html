@@ -994,6 +994,14 @@
         // Everything else - future days and anything older - is read-only, regardless of
         // which month/year is currently being viewed.
         const EDITABLE_WINDOW_DAYS = 2; // today + 1 day back
+        const DAY_BOUNDARY_HOUR = 5; // "today" runs from 5:00 AM to the next day's 5:00 AM
+
+        // The Daily Target ring should treat "today" as running 5 AM -> 5 AM (not midnight -> midnight).
+        // e.g. at 3 AM on July 10, it should still show July 9's progress.
+        function getEffectiveToday() {
+            const now = new Date();
+            return new Date(now.getTime() - DAY_BOUNDARY_HOUR * 60 * 60 * 1000);
+        }
 
         function isDayEditable(year, monthName, day) {
             const cellDate = new Date(year, months.indexOf(monthName), day);
@@ -1273,9 +1281,10 @@
             const circumference = 2 * Math.PI * 50;
             circle.style.strokeDashoffset = circumference - (globalPercent / 100) * circumference;
 
-            // Daily Target Met: for "today's" day-of-month, how many habits were checked off
-            // out of the total habit count for the month currently being viewed.
-            const todayDayNum = Math.min(new Date().getDate(), daysCount);
+            // Daily Target Met: uses a 5 AM -> 5 AM "day" (not midnight -> midnight), so between
+            // midnight and 5 AM it still shows the previous calendar day's progress.
+            const effectiveToday = getEffectiveToday();
+            const todayDayNum = Math.min(effectiveToday.getDate(), daysCount);
             let dailyCompleted = 0;
             currentHabits.forEach(habit => {
                 const completions = currentHistory[habit.name] || [];
@@ -1287,11 +1296,10 @@
             const dailyCircle = document.getElementById('dailyProgressRingCircle');
             dailyCircle.style.strokeDashoffset = circumference - (dailyPercent / 100) * circumference;
 
-            const dailyDateObj = new Date(store.currentYear, months.indexOf(store.currentMonth), todayDayNum);
-            const weekdayLabel = dailyDateObj.toLocaleDateString('en-US', { weekday: 'short' });
-            const monthLabel = dailyDateObj.toLocaleDateString('en-US', { month: 'short' });
+            const weekdayLabel = effectiveToday.toLocaleDateString('en-US', { weekday: 'short' });
+            const monthLabel = effectiveToday.toLocaleDateString('en-US', { month: 'short' });
             document.getElementById('dailyRingDateText').textContent =
-                `${weekdayLabel}, ${monthLabel} ${todayDayNum}, ${store.currentYear}`;
+                `${weekdayLabel}, ${monthLabel} ${todayDayNum}, ${effectiveToday.getFullYear()}`;
 
             // Render Line Graph
             const ctx = document.getElementById('trendChart').getContext('2d');
