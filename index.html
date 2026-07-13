@@ -267,6 +267,152 @@
             }
         }
 
+        /* GitHub-style contribution heatmap */
+        .heatmap-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .heatmap-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .heatmap-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .heatmap-legend {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .heatmap-scroll {
+            overflow: hidden;
+            padding-bottom: 4px;
+        }
+
+        .heatmap-inner {
+            display: block;
+        }
+
+        .heatmap-months {
+            display: flex;
+            gap: 3px;
+            margin-left: 30px;
+            margin-bottom: 4px;
+            height: 14px;
+        }
+
+        .month-slot {
+            width: 11px;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .month-slot span {
+            position: absolute;
+            left: 0;
+            top: 0;
+            white-space: nowrap;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+        }
+
+        .heatmap-body {
+            display: flex;
+            gap: 4px;
+        }
+
+        .heatmap-weekday-labels {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            width: 26px;
+            flex-shrink: 0;
+        }
+
+        .heatmap-weekday-labels span {
+            height: 11px;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            line-height: 11px;
+        }
+
+        .heatmap-grid {
+            display: flex;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .heatmap-week {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .heat-cell {
+            width: 11px;
+            height: 11px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.05);
+            flex-shrink: 0;
+        }
+
+        .heat-cell.future {
+            visibility: hidden;
+        }
+
+        .heat-cell.level1 {
+            background: rgba(16, 185, 129, 0.3);
+        }
+
+        .heat-cell.level2 {
+            background: rgba(16, 185, 129, 0.5);
+        }
+
+        .heat-cell.level3 {
+            background: rgba(16, 185, 129, 0.75);
+        }
+
+        .heat-cell.level4 {
+            background: rgba(16, 185, 129, 1);
+        }
+
+        .heat-cell {
+            cursor: pointer;
+        }
+
+        .heatmap-tooltip {
+            display: none;
+            position: fixed;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.72rem;
+            color: var(--text-main);
+            z-index: 600;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .heatmap-tooltip.show {
+            display: block;
+        }
+
         /* Modern Custom Scrollbar Implementation */
         .matrix-container {
             overflow-x: auto;
@@ -721,6 +867,9 @@
         <button class="danger" id="habitMenuDeleteBtn">🗑️ Delete</button>
     </div>
 
+    <!-- Floating tooltip for heatmap cells - shown on both hover (desktop) and tap (mobile) -->
+    <div class="heatmap-tooltip" id="heatmapTooltip"></div>
+
     <header>
         <div>
             <h1>PRODUCTIVITY TRACKER</h1>
@@ -765,6 +914,34 @@
                     <canvas id="trendChart"></canvas>
                 </div>
             </div>
+
+            <!-- GitHub-style contribution heatmap -->
+            <div class="heatmap-section">
+                <div class="section-title" style="margin-bottom: 10px;">Heat Map</div>
+                <div class="heatmap-header">
+                    <span class="heatmap-title" id="heatmapTitle"></span>
+                    <span class="heatmap-legend">
+                        Less
+                        <span class="heat-cell level0"></span>
+                        <span class="heat-cell level1"></span>
+                        <span class="heat-cell level2"></span>
+                        <span class="heat-cell level3"></span>
+                        <span class="heat-cell level4"></span>
+                        More
+                    </span>
+                </div>
+                <div class="heatmap-scroll">
+                    <div class="heatmap-inner">
+                        <div class="heatmap-months" id="heatmapMonths"></div>
+                        <div class="heatmap-body">
+                            <div class="heatmap-weekday-labels">
+                                <span></span><span>Mon</span><span></span><span>Wed</span><span></span><span>Fri</span><span></span>
+                            </div>
+                            <div class="heatmap-grid" id="heatmapGrid"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Grid Matrix Framework -->
@@ -797,6 +974,10 @@
             <div class="habit-actions" id="habitActions">
                 <input type="text" id="newHabitName" placeholder="New Habit Title">
                 <input type="number" id="newHabitTarget" placeholder="Target" min="1" max="31" value="26">
+                <select id="newHabitCategory">
+                    <option value="tech">🧑‍💻 Tech</option>
+                    <option value="nontech">🌱 Not Tech</option>
+                </select>
                 <button class="btn-primary" onclick="addCustomHabit()">Add Habit</button>
             </div>
         </div>
@@ -833,16 +1014,33 @@
 
     <script>
         const defaultHabits = [
-            { name: "Solved DSA Problem(s) 🧠", target: 26 },
-            { name: "Write/Revise DSA Notes 📝", target: 26 },
-            { name: "Study DBMS 📚", target: 26 },
-            { name: "StudyAI Engineer Core 🤖", target: 26 },
-            { name: "Study SpringBoot📘", target: 26 },
-            { name: "Read >= 2 Articles (Verbal) 📚", target: 30 },
-            { name: "Hit the Gym 🏋️‍♂️", target: 20 },
-            { name: "Play Sports 🏀", target: 5 },
-            { name: "Skincare Routine", target: 30 }
+            { name: "Solved DSA Problem(s) 🧠", target: 26, category: "tech" },
+            { name: "Write/Revise DSA Notes 📝", target: 26, category: "tech" },
+            { name: "Study DBMS 📚", target: 26, category: "tech" },
+            { name: "StudyAI Engineer Core 🤖", target: 26, category: "tech" },
+            { name: "Study SpringBoot📘", target: 26, category: "tech" },
+            { name: "Read >= 2 Articles (Verbal) 📚", target: 30, category: "tech" },
+            { name: "Hit the Gym 🏋️‍♂️", target: 20, category: "nontech" },
+            { name: "Play Sports 🏀", target: 5, category: "nontech" },
+            { name: "Skincare Routine", target: 30, category: "nontech" }
         ];
+
+        // Names that should count as "tech" even on habits saved before the category field
+        // existed (so existing data doesn't need a manual migration step).
+        const KNOWN_TECH_HABIT_NAMES = new Set([
+            "Solved DSA Problem(s) 🧠",
+            "Write/Revise DSA Notes 📝",
+            "Study DBMS 📚",
+            "StudyAI Engineer Core 🤖",
+            "Study SpringBoot📘",
+            "Read >= 2 Articles (Verbal) 📚",
+            "Extras (Dev) 👨‍💻"
+        ]);
+
+        function getHabitCategory(habit) {
+            if (habit.category === 'tech' || habit.category === 'nontech') return habit.category;
+            return KNOWN_TECH_HABIT_NAMES.has(habit.name) ? 'tech' : 'nontech';
+        }
 
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -1072,6 +1270,7 @@
             if (gridMode !== 'edit') return;
             const name = document.getElementById('newHabitName');
             const target = document.getElementById('newHabitTarget');
+            const category = document.getElementById('newHabitCategory');
             if (!name.value.trim()) return;
 
             const key = getMonthKey();
@@ -1079,7 +1278,11 @@
                 store.monthConfigs[key] = getHabitsForMonth(store.currentYear, store.currentMonth);
             }
 
-            store.monthConfigs[key].push({ name: name.value.trim(), target: parseInt(target.value) || 26 });
+            store.monthConfigs[key].push({
+                name: name.value.trim(),
+                target: parseInt(target.value) || 26,
+                category: category.value === 'tech' ? 'tech' : 'nontech'
+            });
             name.value = '';
             render();
         }
@@ -1116,6 +1319,42 @@
         document.addEventListener('scroll', closeAllHabitMenus, true);
         window.addEventListener('resize', closeAllHabitMenus);
 
+        // ---------- Heatmap cell tooltip (works for both hover-via-title and tap) ----------
+        let heatmapTooltipHideTimer = null;
+
+        function hideHeatmapTooltip() {
+            document.getElementById('heatmapTooltip').classList.remove('show');
+        }
+
+        function showHeatmapTooltip(cellEl, text) {
+            const tooltip = document.getElementById('heatmapTooltip');
+            tooltip.textContent = text;
+            tooltip.classList.add('show');
+
+            const rect = cellEl.getBoundingClientRect();
+            // Position above the cell by default; measure after showing so we know its size.
+            const tooltipRect = tooltip.getBoundingClientRect();
+            let left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+            left = Math.max(8, Math.min(left, window.innerWidth - tooltipRect.width - 8));
+            let top = rect.top - tooltipRect.height - 8;
+            if (top < 8) top = rect.bottom + 8; // flip below if there's no room above
+            tooltip.style.left = `${left}px`;
+            tooltip.style.top = `${top}px`;
+
+            clearTimeout(heatmapTooltipHideTimer);
+            heatmapTooltipHideTimer = setTimeout(hideHeatmapTooltip, 3000); // auto-dismiss on mobile taps
+        }
+
+        document.addEventListener('click', hideHeatmapTooltip);
+        document.addEventListener('scroll', hideHeatmapTooltip, true);
+
+        // Re-fit the heatmap's week count whenever the viewport/card width changes.
+        let heatmapResizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(heatmapResizeTimer);
+            heatmapResizeTimer = setTimeout(renderHeatmap, 200);
+        });
+
         function startEdit(index) {
             if (gridMode !== 'edit') return;
             editingIndex = index;
@@ -1131,6 +1370,7 @@
             if (gridMode !== 'edit') return;
             const newName = document.getElementById(`editNameInput_${index}`).value.trim();
             const newTarget = parseInt(document.getElementById(`editTargetInput_${index}`).value) || 0;
+            const newCategory = document.getElementById(`editCategoryInput_${index}`).value === 'tech' ? 'tech' : 'nontech';
             if (!newName) return;
 
             const key = getMonthKey();
@@ -1141,6 +1381,7 @@
             const oldName = store.monthConfigs[key][index].name;
             store.monthConfigs[key][index].name = newName;
             store.monthConfigs[key][index].target = newTarget;
+            store.monthConfigs[key][index].category = newCategory;
 
             if (oldName !== newName && store.history[key] && store.history[key][oldName]) {
                 store.history[key][newName] = store.history[key][oldName];
@@ -1247,11 +1488,16 @@
                 const isEditing = gridMode === 'edit' && editingIndex === index;
                 let habitCellContent = '';
                 let targetCellContent = '';
+                const habitCategory = getHabitCategory(habit);
 
                 if (isEditing) {
                     habitCellContent = `
                         <div class="habit-title-cell">
-                            <input type="text" id="editNameInput_${index}" class="inline-edit-input" value="${habit.name}">
+                            <input type="text" id="editNameInput_${index}" class="inline-edit-input" style="flex:1;" value="${habit.name}">
+                            <select id="editCategoryInput_${index}" class="inline-edit-input" style="width:auto; flex:0 0 auto;">
+                                <option value="tech" ${habitCategory === 'tech' ? 'selected' : ''}>🧑‍💻 Tech</option>
+                                <option value="nontech" ${habitCategory === 'nontech' ? 'selected' : ''}>🌱 Not Tech</option>
+                            </select>
                             <div class="edit-controls">
                                 <button class="btn-small btn-primary" onclick="saveEdit(${index})">✓</button>
                                 <button class="btn-small" onclick="cancelEdit()">✕</button>
@@ -1356,6 +1602,131 @@
                     }
                 }
             });
+
+            renderHeatmap();
+        }
+
+        // Builds a GitHub-style contribution heatmap covering the last ~53 weeks.
+        // Each day's shade reflects what fraction of that month's habits were ticked that day.
+        function renderHeatmap() {
+            const gridEl = document.getElementById('heatmapGrid');
+            const monthsEl = document.getElementById('heatmapMonths');
+            const titleEl = document.getElementById('heatmapTitle');
+            const scrollEl = document.querySelector('.heatmap-scroll');
+            const bodyEl = document.querySelector('.heatmap-body');
+            gridEl.innerHTML = '';
+            monthsEl.innerHTML = '';
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            // Always build the full ~53-week range first; we trim from the oldest end afterward
+            // based on *measured* rendered width, rather than a guessed pixel formula - this stays
+            // correct regardless of screen size, zoom level, or any future CSS tweaks.
+            const MAX_WEEKS = 53;
+            const start = new Date(today.getTime() - (MAX_WEEKS * 7 - 1) * 24 * 60 * 60 * 1000);
+            start.setDate(start.getDate() - start.getDay());
+
+            const dates = [];
+            for (let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)) {
+                dates.push(new Date(d));
+            }
+
+            const weeks = [];
+            for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
+
+            // Cache habit configs per month-key so we don't recompute the inheritance chain per day.
+            const habitCache = {};
+            function habitsFor(y, m) {
+                const key = `${y}-${m}`;
+                if (!habitCache[key]) habitCache[key] = getHabitsForMonth(y, m);
+                return habitCache[key];
+            }
+
+            function statsFor(d) {
+                const y = d.getFullYear();
+                const m = months[d.getMonth()];
+                const key = `${y}-${m}`;
+                const techHabits = habitsFor(y, m).filter(h => getHabitCategory(h) === 'tech');
+                const hist = store.history[key] || {};
+                let count = 0;
+                techHabits.forEach(h => { if ((hist[h.name] || []).includes(d.getDate())) count++; });
+                return { count, total: techHabits.length };
+            }
+
+            function levelFor(count, total) {
+                if (!count || !total) return 'level0';
+                const pct = count / total;
+                if (pct <= 0.25) return 'level1';
+                if (pct <= 0.5) return 'level2';
+                if (pct <= 0.75) return 'level3';
+                return 'level4';
+            }
+
+            let lastMonthSeen = -1;
+            const weekTickCounts = []; // parallel to gridEl's children, in the same order
+
+            weeks.forEach(week => {
+                // Month label: this week gets a label if it's the first week containing that month's 1st.
+                const firstOfMonthDay = week.find(d => d.getDate() === 1);
+                const monthSlot = document.createElement('div');
+                monthSlot.className = 'month-slot';
+                if (firstOfMonthDay && firstOfMonthDay.getMonth() !== lastMonthSeen) {
+                    lastMonthSeen = firstOfMonthDay.getMonth();
+                    const label = document.createElement('span');
+                    label.textContent = months[firstOfMonthDay.getMonth()].slice(0, 3);
+                    monthSlot.appendChild(label);
+                }
+                monthsEl.appendChild(monthSlot);
+
+                const weekEl = document.createElement('div');
+                weekEl.className = 'heatmap-week';
+                let weekTicks = 0;
+
+                week.forEach(d => {
+                    const cell = document.createElement('div');
+                    if (d > today) {
+                        cell.className = 'heat-cell future';
+                    } else {
+                        const { count, total } = statsFor(d);
+                        weekTicks += count;
+                        cell.className = `heat-cell ${levelFor(count, total)}`;
+                        const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        const tooltipText = total > 0
+                            ? `${count} of ${total} tech habits ticked - ${dateLabel}`
+                            : `No tech habits configured - ${dateLabel}`;
+                        cell.title = tooltipText; // native hover tooltip for desktop
+                        cell.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            showHeatmapTooltip(e.currentTarget, tooltipText);
+                        });
+                    }
+                    weekEl.appendChild(cell);
+                });
+
+                weekTickCounts.push(weekTicks);
+                gridEl.appendChild(weekEl);
+            });
+
+            // Trim from the oldest (leftmost) end, re-measuring actual rendered width each time,
+            // until the grid genuinely fits within the visible container - no scrolling needed.
+            const MIN_WEEKS = 4;
+            let guard = 0;
+            while (
+                bodyEl.scrollWidth > scrollEl.clientWidth &&
+                gridEl.children.length > MIN_WEEKS &&
+                guard < MAX_WEEKS
+            ) {
+                gridEl.removeChild(gridEl.firstElementChild);
+                monthsEl.removeChild(monthsEl.firstElementChild);
+                weekTickCounts.shift();
+                guard++;
+            }
+
+            const totalTicks = weekTickCounts.reduce((a, b) => a + b, 0);
+            const weeksShown = gridEl.children.length;
+            const periodLabel = weeksShown >= 52 ? 'in the last year' : `in the last ${weeksShown} weeks`;
+            titleEl.textContent = `${totalTicks} Tech Habit Tick${totalTicks === 1 ? '' : 's'} ${periodLabel}`;
         }
 
         function exportJSON() {
