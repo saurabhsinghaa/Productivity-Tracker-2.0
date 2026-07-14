@@ -1064,6 +1064,8 @@
                 sessionStorage.setItem('habit_tracker_authed', 'true');
                 errorEl.textContent = '';
                 unlockSite();
+                render(); // content was hidden (display:none) during the initial render, so
+                          // width-dependent bits like the heatmap need a re-measure now that it's visible
             } else {
                 errorEl.textContent = 'Incorrect password. Try again.';
                 input.value = '';
