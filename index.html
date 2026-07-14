@@ -917,9 +917,8 @@
 
             <!-- GitHub-style contribution heatmap -->
             <div class="heatmap-section">
-                <div class="section-title" style="margin-bottom: 10px;">Heat Map</div>
                 <div class="heatmap-header">
-                    <span class="heatmap-title" id="heatmapTitle"></span>
+                    <div class="section-title" style="margin-bottom: 0;">Heat Map (Tech)</div>
                     <span class="heatmap-legend">
                         Less
                         <span class="heat-cell level0"></span>
@@ -1613,7 +1612,6 @@
         function renderHeatmap() {
             const gridEl = document.getElementById('heatmapGrid');
             const monthsEl = document.getElementById('heatmapMonths');
-            const titleEl = document.getElementById('heatmapTitle');
             const scrollEl = document.querySelector('.heatmap-scroll');
             const bodyEl = document.querySelector('.heatmap-body');
             gridEl.innerHTML = '';
@@ -1724,11 +1722,6 @@
                 weekTickCounts.shift();
                 guard++;
             }
-
-            const totalTicks = weekTickCounts.reduce((a, b) => a + b, 0);
-            const weeksShown = gridEl.children.length;
-            const periodLabel = weeksShown >= 52 ? 'in the last year' : `in the last ${weeksShown} weeks`;
-            titleEl.textContent = `${totalTicks} Tech Habit Tick${totalTicks === 1 ? '' : 's'} ${periodLabel}`;
         }
 
         function exportJSON() {
