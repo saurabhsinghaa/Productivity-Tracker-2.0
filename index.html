@@ -1469,7 +1469,8 @@
                 header.innerHTML += `<th class="${isToday ? 'today-header-glow' : ''}">${d}</th>`;
             }
 
-            const dayCompletionsCount = Array(daysCount).fill(0);
+            const dayCompletionsCount = Array(daysCount).fill(0); // weighted "Score"
+            const dayRawTaskCount = Array(daysCount).fill(0); // plain count of tasks completed
             let globalCompleted = 0;
             let globalTarget = 0;
 
@@ -1484,7 +1485,12 @@
                 globalCompleted += completions.length * habitWeight;
                 globalTarget += habit.target * habitWeight;
 
-                completions.forEach(d => { if (d <= daysCount) dayCompletionsCount[d - 1] += habitWeight; });
+                completions.forEach(d => {
+                    if (d <= daysCount) {
+                        dayCompletionsCount[d - 1] += habitWeight;
+                        dayRawTaskCount[d - 1] += 1;
+                    }
+                });
 
                 const isEditing = gridMode === 'edit' && editingIndex === index;
                 let habitCellContent = '';
@@ -1584,7 +1590,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Weight Completed Per Day',
+                        label: 'Score',
                         data: dayCompletionsCount,
                         borderColor: '#3b82f6',
                         backgroundColor: 'rgba(59, 130, 246, 0.08)',
@@ -1597,14 +1603,25 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => {
+                                    const day = items[0].label;
+                                    return `${day} ${store.currentMonth}`;
+                                },
+                                label: (item) => `Score: ${item.formattedValue}`,
+                                afterLabel: (item) => `Number of Tasks Completed: ${dayRawTaskCount[item.dataIndex]}`
+                            }
+                        }
+                    },
                     scales: {
                         x: { grid: { color: '#242936' }, ticks: { color: '#64748b', font: { size: 9 } } },
                         y: {
                             grid: { color: '#242936' },
                             ticks: { color: '#64748b', font: { size: 9 } },
-                            min: 0,
-                            title: { display: true, text: 'Weight', color: '#64748b', font: { size: 10 } }
+                            min: 0
                         }
                     }
                 }
@@ -1670,7 +1687,7 @@
             }
 
             function levelFor(count, total) {
-                if (!count || !total) return 'level0';
+                if (!count || !total || count <= 3) return 'level0';
                 const pct = count / total;
                 if (pct <= 0.25) return 'level1';
                 if (pct <= 0.5) return 'level2';
@@ -1703,12 +1720,12 @@
                     if (d > today) {
                         cell.className = 'heat-cell future';
                     } else {
-                        const { rawCount, total, weightedCount, weightedTotal } = statsFor(d);
-                        weekTicks += rawCount;
+                        const { total, weightedCount, weightedTotal } = statsFor(d);
+                        weekTicks += weightedCount;
                         cell.className = `heat-cell ${levelFor(weightedCount, weightedTotal)}`;
                         const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                         const tooltipText = total > 0
-                            ? `${rawCount} of ${total} habits ticked - ${dateLabel}`
+                            ? `Score: ${weightedCount.toFixed(1)} of ${weightedTotal.toFixed(1)} - ${dateLabel}`
                             : `No habits configured - ${dateLabel}`;
                         cell.title = tooltipText; // native hover tooltip for desktop
                         cell.addEventListener('click', (e) => {
