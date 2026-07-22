@@ -918,7 +918,7 @@
             <!-- GitHub-style contribution heatmap -->
             <div class="heatmap-section">
                 <div class="heatmap-header">
-                    <div class="section-title" style="margin-bottom: 0;">Heat Map (Tech)</div>
+                    <div class="section-title" style="margin-bottom: 0;">Heat Map</div>
                     <span class="heatmap-legend">
                         Less
                         <span class="heat-cell level0"></span>
@@ -973,10 +973,7 @@
             <div class="habit-actions" id="habitActions">
                 <input type="text" id="newHabitName" placeholder="New Habit Title">
                 <input type="number" id="newHabitTarget" placeholder="Target" min="1" max="31" value="26">
-                <select id="newHabitCategory">
-                    <option value="tech">🧑‍💻 Tech</option>
-                    <option value="nontech">🌱 Not Tech</option>
-                </select>
+                <select id="newHabitWeight"></select>
                 <button class="btn-primary" onclick="addCustomHabit()">Add Habit</button>
             </div>
         </div>
@@ -1013,32 +1010,29 @@
 
     <script>
         const defaultHabits = [
-            { name: "Solved DSA Problem(s) 🧠", target: 26, category: "tech" },
-            { name: "Write/Revise DSA Notes 📝", target: 26, category: "tech" },
-            { name: "Study DBMS 📚", target: 26, category: "tech" },
-            { name: "StudyAI Engineer Core 🤖", target: 26, category: "tech" },
-            { name: "Study SpringBoot📘", target: 26, category: "tech" },
-            { name: "Read >= 2 Articles (Verbal) 📚", target: 30, category: "tech" },
-            { name: "Hit the Gym 🏋️‍♂️", target: 20, category: "nontech" },
-            { name: "Play Sports 🏀", target: 5, category: "nontech" },
-            { name: "Skincare Routine", target: 30, category: "nontech" }
+            { name: "Solved DSA Problem(s) 🧠", target: 26, weight: 1 },
+            { name: "Write/Revise DSA Notes 📝", target: 26, weight: 1 },
+            { name: "Study DBMS 📚", target: 26, weight: 1 },
+            { name: "StudyAI Engineer Core 🤖", target: 26, weight: 1 },
+            { name: "Study SpringBoot📘", target: 26, weight: 1 },
+            { name: "Read >= 2 Articles (Verbal) 📚", target: 30, weight: 1 },
+            { name: "Hit the Gym 🏋️‍♂️", target: 20, weight: 1 },
+            { name: "Play Sports 🏀", target: 5, weight: 1 },
+            { name: "Skincare Routine", target: 30, weight: 1 }
         ];
 
-        // Names that should count as "tech" even on habits saved before the category field
-        // existed (so existing data doesn't need a manual migration step).
-        const KNOWN_TECH_HABIT_NAMES = new Set([
-            "Solved DSA Problem(s) 🧠",
-            "Write/Revise DSA Notes 📝",
-            "Study DBMS 📚",
-            "StudyAI Engineer Core 🤖",
-            "Study SpringBoot📘",
-            "Read >= 2 Articles (Verbal) 📚",
-            "Extras (Dev) 👨‍💻"
-        ]);
+        const WEIGHT_OPTIONS = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
 
-        function getHabitCategory(habit) {
-            if (habit.category === 'tech' || habit.category === 'nontech') return habit.category;
-            return KNOWN_TECH_HABIT_NAMES.has(habit.name) ? 'tech' : 'nontech';
+        // Every habit has its own weight now (no more category grouping). Falls back to 1 for
+        // any habit saved before this field existed, or with an old "category" field.
+        function getHabitWeight(habit) {
+            return (typeof habit.weight === 'number' && habit.weight > 0) ? habit.weight : 1;
+        }
+
+        function buildWeightOptionsHTML(selectedWeight) {
+            return WEIGHT_OPTIONS.map(w =>
+                `<option value="${w}" ${w === selectedWeight ? 'selected' : ''}>${w.toFixed(1)}x</option>`
+            ).join('');
         }
 
         const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -1271,7 +1265,7 @@
             if (gridMode !== 'edit') return;
             const name = document.getElementById('newHabitName');
             const target = document.getElementById('newHabitTarget');
-            const category = document.getElementById('newHabitCategory');
+            const weight = document.getElementById('newHabitWeight');
             if (!name.value.trim()) return;
 
             const key = getMonthKey();
@@ -1282,7 +1276,7 @@
             store.monthConfigs[key].push({
                 name: name.value.trim(),
                 target: parseInt(target.value) || 26,
-                category: category.value === 'tech' ? 'tech' : 'nontech'
+                weight: parseFloat(weight.value) || 1
             });
             name.value = '';
             render();
@@ -1371,7 +1365,7 @@
             if (gridMode !== 'edit') return;
             const newName = document.getElementById(`editNameInput_${index}`).value.trim();
             const newTarget = parseInt(document.getElementById(`editTargetInput_${index}`).value) || 0;
-            const newCategory = document.getElementById(`editCategoryInput_${index}`).value === 'tech' ? 'tech' : 'nontech';
+            const newWeight = parseFloat(document.getElementById(`editWeightInput_${index}`).value) || 1;
             if (!newName) return;
 
             const key = getMonthKey();
@@ -1382,7 +1376,7 @@
             const oldName = store.monthConfigs[key][index].name;
             store.monthConfigs[key][index].name = newName;
             store.monthConfigs[key][index].target = newTarget;
-            store.monthConfigs[key][index].category = newCategory;
+            store.monthConfigs[key][index].weight = newWeight;
 
             if (oldName !== newName && store.history[key] && store.history[key][oldName]) {
                 store.history[key][newName] = store.history[key][oldName];
@@ -1458,6 +1452,11 @@
                 : 'Read-only View mode - click to switch to Edit mode';
             document.getElementById('habitActions').classList.toggle('disabled', gridMode !== 'edit');
 
+            // Keep the Add Habit weight dropdown populated, preserving the current selection.
+            const newHabitWeightSel = document.getElementById('newHabitWeight');
+            const preservedWeight = parseFloat(newHabitWeightSel.value) || 1;
+            newHabitWeightSel.innerHTML = buildWeightOptionsHTML(preservedWeight);
+
             // Render Grid Headings
             const header = document.getElementById('matrixHeader');
             header.innerHTML = `<th>Habit Metric</th><th>Target</th>`;
@@ -1481,23 +1480,22 @@
 
             currentHabits.forEach((habit, index) => {
                 const completions = currentHistory[habit.name] || [];
-                globalCompleted += completions.length;
-                globalTarget += habit.target;
+                const habitWeight = getHabitWeight(habit);
+                globalCompleted += completions.length * habitWeight;
+                globalTarget += habit.target * habitWeight;
 
-                completions.forEach(d => { if (d <= daysCount) dayCompletionsCount[d - 1]++; });
+                completions.forEach(d => { if (d <= daysCount) dayCompletionsCount[d - 1] += habitWeight; });
 
                 const isEditing = gridMode === 'edit' && editingIndex === index;
                 let habitCellContent = '';
                 let targetCellContent = '';
-                const habitCategory = getHabitCategory(habit);
 
                 if (isEditing) {
                     habitCellContent = `
                         <div class="habit-title-cell">
                             <input type="text" id="editNameInput_${index}" class="inline-edit-input" style="flex:1;" value="${habit.name}">
-                            <select id="editCategoryInput_${index}" class="inline-edit-input" style="width:auto; flex:0 0 auto;">
-                                <option value="tech" ${habitCategory === 'tech' ? 'selected' : ''}>🧑‍💻 Tech</option>
-                                <option value="nontech" ${habitCategory === 'nontech' ? 'selected' : ''}>🌱 Not Tech</option>
+                            <select id="editWeightInput_${index}" class="inline-edit-input" style="width:auto; flex:0 0 auto;">
+                                ${buildWeightOptionsHTML(habitWeight)}
                             </select>
                             <div class="edit-controls">
                                 <button class="btn-small btn-primary" onclick="saveEdit(${index})">✓</button>
@@ -1554,14 +1552,17 @@
 
             // Daily Target Met: uses a 3 AM -> 3 AM "day" (not midnight -> midnight), so between
             // midnight and 3 AM it still shows the previous calendar day's progress.
+            // Every habit counts, weighted by its own weight.
             const effectiveToday = getEffectiveToday();
             const todayDayNum = Math.min(effectiveToday.getDate(), daysCount);
             let dailyCompleted = 0;
+            let dailyTarget = 0;
             currentHabits.forEach(habit => {
+                const weight = getHabitWeight(habit);
+                dailyTarget += weight;
                 const completions = currentHistory[habit.name] || [];
-                if (completions.includes(todayDayNum)) dailyCompleted++;
+                if (completions.includes(todayDayNum)) dailyCompleted += weight;
             });
-            const dailyTarget = currentHabits.length;
             const dailyPercent = dailyTarget > 0 ? Math.min(100, (dailyCompleted / dailyTarget) * 100) : 0;
             document.getElementById('dailyRingPercentageText').textContent = `${dailyPercent.toFixed(0)}%`;
             const dailyCircle = document.getElementById('dailyProgressRingCircle');
@@ -1583,7 +1584,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Habits Completed Per Day',
+                        label: 'Weight Completed Per Day',
                         data: dayCompletionsCount,
                         borderColor: '#3b82f6',
                         backgroundColor: 'rgba(59, 130, 246, 0.08)',
@@ -1599,7 +1600,12 @@
                     plugins: { legend: { display: false } },
                     scales: {
                         x: { grid: { color: '#242936' }, ticks: { color: '#64748b', font: { size: 9 } } },
-                        y: { grid: { color: '#242936' }, ticks: { color: '#64748b', font: { size: 9 }, stepSize: 1 }, min: 0 }
+                        y: {
+                            grid: { color: '#242936' },
+                            ticks: { color: '#64748b', font: { size: 9 } },
+                            min: 0,
+                            title: { display: true, text: 'Weight', color: '#64748b', font: { size: 10 } }
+                        }
                     }
                 }
             });
@@ -1647,11 +1653,20 @@
                 const y = d.getFullYear();
                 const m = months[d.getMonth()];
                 const key = `${y}-${m}`;
-                const techHabits = habitsFor(y, m).filter(h => getHabitCategory(h) === 'tech');
+                const habits = habitsFor(y, m);
                 const hist = store.history[key] || {};
-                let count = 0;
-                techHabits.forEach(h => { if ((hist[h.name] || []).includes(d.getDate())) count++; });
-                return { count, total: techHabits.length };
+                let rawCount = 0;
+                let weightedCount = 0;
+                let weightedTotal = 0;
+                habits.forEach(h => {
+                    const w = getHabitWeight(h);
+                    weightedTotal += w;
+                    if ((hist[h.name] || []).includes(d.getDate())) {
+                        rawCount++;
+                        weightedCount += w;
+                    }
+                });
+                return { rawCount, total: habits.length, weightedCount, weightedTotal };
             }
 
             function levelFor(count, total) {
@@ -1688,13 +1703,13 @@
                     if (d > today) {
                         cell.className = 'heat-cell future';
                     } else {
-                        const { count, total } = statsFor(d);
-                        weekTicks += count;
-                        cell.className = `heat-cell ${levelFor(count, total)}`;
+                        const { rawCount, total, weightedCount, weightedTotal } = statsFor(d);
+                        weekTicks += rawCount;
+                        cell.className = `heat-cell ${levelFor(weightedCount, weightedTotal)}`;
                         const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                         const tooltipText = total > 0
-                            ? `${count} of ${total} tech habits ticked - ${dateLabel}`
-                            : `No tech habits configured - ${dateLabel}`;
+                            ? `${rawCount} of ${total} habits ticked - ${dateLabel}`
+                            : `No habits configured - ${dateLabel}`;
                         cell.title = tooltipText; // native hover tooltip for desktop
                         cell.addEventListener('click', (e) => {
                             e.stopPropagation();
